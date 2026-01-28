@@ -91,7 +91,7 @@ async def broadcast_copy(bot: Bot, from_chat, msg_id, users):
     total = len(users)
 
     for i, user_id in enumerate(users, start=1):
-        print(i, user_id)
+        
         try:
             await bot.copy_message(user_id, from_chat, msg_id)
             success += 1
