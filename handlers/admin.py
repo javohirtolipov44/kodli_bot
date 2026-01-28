@@ -1,18 +1,21 @@
-from aiogram import Router, F
+import asyncio
+import time
+from aiogram import Router, F, Bot
+from aiogram.exceptions import TelegramRetryAfter, TelegramForbiddenError
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery
 
 from baza.homiy import add_homiy, del_homiy, get_all_homiy
-from baza.users import get_users_count
+from baza.users import get_users_count, get_all_users
 from baza.chanel import get_chanel, add_chanel, del_chanel, get_all_chanels
 from config import ADMINS
 from keyboards.admin import admin_kb
+from keyboards.message import message_kb
 from keyboards.homiy import homiy_kb
 from keyboards.anime import anime_kb
-from keyboards.message import message_kb
 from states.homiy_state import HomiyState
-from states.anime_chanel_state import AnimeChanelState
 from states.admin_state import AdminState
+from states.anime_chanel_state import AnimeChanelState
 
 router = Router()
 
