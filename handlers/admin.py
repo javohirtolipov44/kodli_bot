@@ -9,8 +9,10 @@ from config import ADMINS
 from keyboards.admin import admin_kb
 from keyboards.homiy import homiy_kb
 from keyboards.anime import anime_kb
+from keyboards.message import message_kb
 from states.homiy_state import HomiyState
 from states.anime_chanel_state import AnimeChanelState
+from states.admin_state import AdminState
 
 router = Router()
 
@@ -29,6 +31,97 @@ async def statistika(callback: CallbackQuery):
         return
     user = await get_users_count()
     await callback.message.edit_text(f"Barcha obunachilar: {user}", reply_markup=admin_kb)
+
+@router.callback_query(F.data == "send_message")
+async def send_message(callback: CallbackQuery, state: FSMContext):
+    if not callback.from_user.id in ADMINS:
+        await callback.answer("Siz admin emassiz")
+        return
+    await state.set_state(AdminState.send_message)
+    await callback.message.edit_text("Xabaringizni yuboring")
+
+@router.message(AdminState.send_message)
+async def send_message_finish(message: Message, state: FSMContext):
+    if message.from_user.id not in ADMINS:
+        return
+    await state.update_data(
+    from_chat_id=message.chat.id,
+    message_id=message.message_id
+)
+    await message.answer("Xabar tasdiqlandi yuboraymi?", reply_markup=message_kb)
+
+@router.callback_query(F.data == "send")
+async def confirm_broadcast(
+    call: CallbackQuery,
+    state: FSMContext,
+    bot: Bot
+):
+    if call.from_user.id not in ADMINS:
+        return
+
+    data = await state.get_data()
+    from_chat_id = data.get("from_chat_id")
+    message_id = data.get("message_id")
+
+    
+
+    user_ids = await get_all_users()  # PostgreSQL async
+
+    await call.message.edit_text(
+        f"⏳ Xabar yuborilmoqda...\n"
+        f"👥 Foydalanuvchilar: {len(user_ids)}"
+    )
+
+    # 🔥 ASOSIY JOY
+    asyncio.create_task(
+        broadcast_copy(bot, from_chat_id, message_id, user_ids)
+    )
+
+    await call.answer("🚀 Broadcast boshlandi")
+    await state.clear()
+
+async def broadcast_copy(bot: Bot, from_chat, msg_id, users):
+    start_time = time.monotonic()   # ⏱ boshlanish vaqti
+    success = 0
+    failed = 0
+
+    total = len(users)
+
+    for i, user_id in enumerate(users, start=1):
+        print(i, user_id)
+        try:
+            await bot.copy_message(user_id, from_chat, msg_id)
+            success += 1
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+            try:
+                await bot.copy_message(user_id, from_chat, msg_id)
+                success += 1
+            except:
+                failed += 1
+        except TelegramForbiddenError:
+            failed += 1
+        except Exception as e:
+            failed += 1
+            print(f"Xato {user_id}: {e}")
+
+        await asyncio.sleep(0.05)  # ⚡ tez, xavfsiz
+
+    # ⏱ tugash vaqti
+    elapsed = time.monotonic() - start_time
+
+    minutes, seconds = divmod(int(elapsed), 60)
+
+    report = (
+        "✅ Broadcast yakunlandi\n\n"
+        f"👥 Jami foydalanuvchilar: {total}\n"
+        f"📬 Yuborildi: {success}\n"
+        f"❌ Xatolik: {failed}\n"
+        f"⏱ Sarflangan vaqt: {minutes} daqiqa {seconds} soniya"
+    )
+
+    # 📣 Admin(lar)ga xabar berish
+    await bot.send_message(from_chat, report)
 
 @router.callback_query(F.data == "anime_chanel")
 async def anime_chanel(callback: CallbackQuery):
